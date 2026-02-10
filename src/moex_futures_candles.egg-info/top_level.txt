@@ -1,3 +1,0 @@
-moex
-services
-storage
