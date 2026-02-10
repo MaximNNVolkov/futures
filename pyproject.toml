@@ -1,0 +1,18 @@
+[project]
+name = "moex-futures-candles"
+version = "0.1.0"
+description = "Fetch MOEX futures candles and store in SQLite"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "requests>=2.31.0",
+  "python-telegram-bot>=21.0",
+  "openpyxl>=3.1.2",
+  "python-dotenv>=1.0.1",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
