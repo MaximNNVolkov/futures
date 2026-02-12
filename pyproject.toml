@@ -9,10 +9,12 @@ dependencies = [
   "python-telegram-bot>=21.0",
   "openpyxl>=3.1.2",
   "python-dotenv>=1.0.1",
+  "matplotlib>=3.8.0",
 ]
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = {src = "src", moex_lib = "moex_lib"}
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["src*", "moex_lib*"]

@@ -29,14 +29,16 @@ class CandlesService:
         return rows
 
     def get_daily_3y(self, ticker: str) -> List[Dict[str, Any]]:
-        end_date = date.today()
-        start_date = end_date - timedelta(days=365 * 3)
+        today = date.today()
+        end_date = today + timedelta(days=1)
+        start_date = today - timedelta(days=365 * 3)
         rows = self.gateway.fetch_candles(
             ticker=ticker,
             start_date=start_date,
             end_date=end_date,
             interval=24,
         )
+        rows = self._filter_rows_up_to_date(rows, today)
         self._persist_if_needed(ticker, 24, rows)
         return rows
 
