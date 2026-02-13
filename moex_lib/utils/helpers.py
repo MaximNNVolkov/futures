@@ -112,9 +112,6 @@ def format_bonds_table(bonds: Iterable[Bond], limit: int | None = None) -> str:
             return "н/д"
         return mapping.get(value, "неизвестно")
 
-    def fmt_bool(value: bool) -> str:
-        return "Да" if value else "Нет"
-
     def fmt_currency(code: str | None) -> str:
         if not code:
             return "н/д"
@@ -131,25 +128,8 @@ def format_bonds_table(bonds: Iterable[Bond], limit: int | None = None) -> str:
         }
         return mapping.get(code, f"валюта {code}")
 
-    rows = []
-    header = [
-        "Код",
-        "Название",
-        "Погашение",
-        "До погаш.",
-        "Тип купона",
-        "Период купона, дн",
-        "Валюта",
-        "Цена, %",
-        "След. купон",
-        "Купон. доходн., %",
-        "Полн. доходн., %",
-        "Аморт.",
-        "Оферта",
-    ]
-    rows.append(header)
-
-    for b in bonds_list:
+    cards: list[str] = []
+    for idx, b in enumerate(bonds_list, start=1):
         maturity_left = "н/д"
         if b.maturity_date:
             days_left = (b.maturity_date - date.today()).days
@@ -160,31 +140,20 @@ def format_bonds_table(bonds: Iterable[Bond], limit: int | None = None) -> str:
                 maturity_left = f"{years}г {months}м"
             else:
                 maturity_left = "погашена"
-        rows.append(
-            [
-                b.secid,
-                b.name or "н/д",
-                b.maturity_date.isoformat() if b.maturity_date else "-",
-                maturity_left,
-                fmt_coupon_type(b.coupon_type),
-                str(b.coupon_period) if b.coupon_period is not None else "н/д",
-                fmt_currency(b.currency),
-                fmt_num(b.current_price),
-                fmt_num(b.next_coupon),
-                fmt_num(coupon_yield_pct(b)),
-                fmt_num(total_yield_pct(b)),
-                fmt_bool(b.has_amortization),
-                fmt_bool(b.has_offer),
-            ]
+
+        cards.append(
+            "\n".join(
+                [
+                    f"{idx}. {b.name or 'н/д'}",
+                    f"Погашение: {b.maturity_date.isoformat() if b.maturity_date else '-'} ({maturity_left})",
+                    f"Купон: {fmt_coupon_type(b.coupon_type)}, период {str(b.coupon_period) if b.coupon_period is not None else 'н/д'} дн",
+                    f"Валюта: {fmt_currency(b.currency)}",
+                    f"Цена: {fmt_num(b.current_price)}%",
+                    f"Следующий купон: {fmt_num(b.next_coupon)}",
+                    f"Купонная доходность: {fmt_num(coupon_yield_pct(b))}%",
+                    f"Полная доходность: {fmt_num(total_yield_pct(b))}%",
+                ]
+            )
         )
 
-    widths = [max(len(str(row[i])) for row in rows) for i in range(len(header))]
-
-    lines = []
-    for idx, row in enumerate(rows):
-        line = "  ".join(str(cell).ljust(widths[i]) for i, cell in enumerate(row))
-        lines.append(line)
-        if idx == 0:
-            lines.append("  ".join("-" * widths[i] for i in range(len(header))))
-
-    return "\n".join(lines)
+    return "\n\n".join(cards)

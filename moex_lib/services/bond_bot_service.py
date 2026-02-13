@@ -19,7 +19,7 @@ def find_bonds_for_telegram(
     has_amortization: bool | None = None,
     has_offer: bool | None = None,
     currency: str | None = "RUB",
-    limit: int = 10,
+    limit: int = 3,
 ) -> str:
     """Build text response for Telegram with selected bonds."""
     filters = BondSearchFilters(

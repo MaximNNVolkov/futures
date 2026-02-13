@@ -30,6 +30,33 @@ echo "TELEGRAM_BOT_TOKEN=YOUR_TOKEN" > .env
 python -m src.bot
 ```
 
+## Деплой на сервер (Docker)
+
+На сервере (Ubuntu/VPS) в папке проекта:
+
+```bash
+cp .env.example .env
+```
+
+Заполнить `.env` (минимум `TELEGRAM_BOT_TOKEN`), затем запустить:
+
+```bash
+docker compose up -d --build
+```
+
+Проверка логов:
+
+```bash
+docker compose logs -f bot
+```
+
+Обновление после изменений:
+
+```bash
+git pull
+docker compose up -d --build
+```
+
 ## Структура
 
 - `src/moex/` — клиент MOEX ISS и доменная логика по фьючерсам

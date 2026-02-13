@@ -45,14 +45,14 @@ BONDS_DEFAULT_FILTERS = {
     "has_amortization": None,
     "has_offer": None,
     "currency": "RUB",
-    "limit": 10,
+    "limit": 3,
 }
 
 COUPON_TYPE_CYCLE = [None, "fixed", "float", "none"]
 BOND_TYPE_CYCLE = [None, "ofz", "corporate", "municipal"]
 TRISTATE_CYCLE = [None, True, False]
 CURRENCY_CYCLE = [None, "RUB", "USD", "EUR", "CNY"]
-LIMIT_CYCLE = [10, 20, 50]
+LIMIT_CYCLE = [3, 5, 10, 20, 50]
 MATURITY_FROM_YEARS_CYCLE = [0, 1, 3]
 MATURITY_TO_YEARS_CYCLE = [3, 5, 10, 50]
 
@@ -511,7 +511,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 def main() -> None:
     logging.basicConfig(
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        level=logging.INFO,
+        level=logging.DEBUG,
     )
     load_dotenv()
     token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
