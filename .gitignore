@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 .env
+.env.dev
 data/
 *.egg-info/
 deploy_key

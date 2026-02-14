@@ -30,6 +30,46 @@ echo "TELEGRAM_BOT_TOKEN=YOUR_TOKEN" > .env
 python -m src.bot
 ```
 
+## Dev стенд (локально)
+
+Создать отдельное dev‑окружение:
+
+```bash
+cp .env.dev.example .env.dev
+```
+
+Заполнить `.env.dev` токеном отдельного dev-бота.
+
+Запуск локального стенда:
+
+```bash
+make dev-up
+```
+
+Если запускаете вручную, задавайте ASCII project name:
+
+```bash
+COMPOSE_PROJECT_NAME=moexbotdev docker compose -f docker-compose.dev.yml --env-file .env.dev up -d --build
+```
+
+Логи:
+
+```bash
+make dev-logs
+```
+
+Остановка:
+
+```bash
+make dev-down
+```
+
+Пересборка:
+
+```bash
+make dev-restart
+```
+
 ## Деплой на сервер (Docker)
 
 На сервере (Ubuntu/VPS) в папке проекта:

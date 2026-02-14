@@ -33,6 +33,7 @@ TELEGRAM_READ_TIMEOUT = 60
 TELEGRAM_WRITE_TIMEOUT = 60
 TELEGRAM_POOL_TIMEOUT = 20
 MAX_MESSAGE_LEN = 4096
+FUTURES_TICKERS_URL = "https://www.moex.com/ru/derivatives/contracts.aspx"
 BONDS_FILTERS_KEY = "bonds_filters"
 
 BONDS_DEFAULT_FILTERS = {
@@ -329,6 +330,14 @@ async def _send_futures_payload(update: Update, ticker: str) -> None:
 
     hourly_rows = await asyncio.to_thread(service.get_hourly_1y, ticker)
     daily_rows = await asyncio.to_thread(service.get_daily_3y, ticker)
+
+    if not hourly_rows and not daily_rows:
+        await update.message.reply_text(
+            "Такой тикер не существует.\n"
+            "Список доступных тикеров фьючерсов MOEX:\n"
+            f"{FUTURES_TICKERS_URL}"
+        )
+        return
 
     file_path = await asyncio.to_thread(build_excel, ticker, hourly_rows, daily_rows)
     chart_path = await asyncio.to_thread(build_daily_chart, ticker, daily_rows)
