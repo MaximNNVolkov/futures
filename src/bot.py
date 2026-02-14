@@ -513,6 +513,9 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         level=logging.INFO,
     )
+    # Suppress noisy HTTP client logs that include Bot API URLs.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     load_dotenv()
     token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     if not token:
