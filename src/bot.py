@@ -511,7 +511,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 def main() -> None:
     logging.basicConfig(
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        level=logging.DEBUG,
+        level=logging.INFO,
     )
     load_dotenv()
     token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
