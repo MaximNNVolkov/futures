@@ -34,6 +34,9 @@ TELEGRAM_WRITE_TIMEOUT = 60
 TELEGRAM_POOL_TIMEOUT = 20
 MAX_MESSAGE_LEN = 4096
 FUTURES_TICKERS_URL = "https://www.moex.com/ru/derivatives/contracts.aspx"
+MAX_FUTURES_SEARCH_RESULTS = 12
+FUTURES_CANCEL_SEARCH_CB = "futures:cancel_search"
+FUTURES_CONTRACTNAME_CACHE: dict[str, str] = {}
 BONDS_FILTERS_KEY = "bonds_filters"
 
 BONDS_DEFAULT_FILTERS = {
@@ -67,6 +70,88 @@ def build_service() -> CandlesService:
     client = MoexClient(base_url=settings.moex_base_url)
     gateway = FuturesCandlesGateway(client=client)
     return CandlesService(gateway=gateway, storage=None)
+
+
+def _normalize_text(value: str | None) -> str:
+    if not value:
+        return ""
+    return value.lower().replace("ё", "е").strip()
+
+
+def _get_contractname_by_secid(client: MoexClient, secid: str) -> str:
+    cached = FUTURES_CONTRACTNAME_CACHE.get(secid)
+    if cached is not None:
+        return cached
+
+    payload = client.get_json(
+        path=f"securities/{secid}.json",
+        params={"iss.meta": "off", "iss.only": "description"},
+    )
+    description = payload.get("description", {}) or {}
+    columns = description.get("columns", [])
+    rows = description.get("data", [])
+    if not columns or not rows:
+        FUTURES_CONTRACTNAME_CACHE[secid] = ""
+        return ""
+
+    idx = {name: i for i, name in enumerate(columns)}
+    idx_name = idx.get("name")
+    idx_value = idx.get("value")
+    if idx_name is None or idx_value is None:
+        FUTURES_CONTRACTNAME_CACHE[secid] = ""
+        return ""
+
+    contract_name = ""
+    fallback_name = ""
+    for row in rows:
+        name = str(row[idx_name] or "").strip().upper()
+        value = str(row[idx_value] or "").strip()
+        if not value:
+            continue
+        if name == "CONTRACTNAME":
+            contract_name = value
+            break
+        if not fallback_name and name in {"NAME", "SHORTNAME"}:
+            fallback_name = value
+
+    result = contract_name or fallback_name
+    FUTURES_CONTRACTNAME_CACHE[secid] = result
+    return result
+
+
+def _search_futures_by_phrase(phrase: str, limit: int = MAX_FUTURES_SEARCH_RESULTS) -> list[dict]:
+    query = _normalize_text(phrase)
+    if not query:
+        return []
+
+    client = MoexClient(base_url=settings.moex_base_url)
+    path = "engines/futures/markets/forts/securities.json"
+    params = {
+        "iss.meta": "off",
+        "iss.only": "securities",
+    }
+    rows = client.get_table_paged(path=path, params=params, table="securities", page_size=1000)
+
+    matched: list[dict] = []
+    for row in rows:
+        board_id = str(row.get("BOARDID") or "")
+        if board_id and board_id.upper() != "RFUD":
+            continue
+
+        secid = str(row.get("SECID") or "").strip()
+        shortname = str(row.get("SHORTNAME") or "").strip()
+        contract_name = _get_contractname_by_secid(client, secid)
+        if query in _normalize_text(contract_name):
+            matched.append(
+                {
+                    "secid": secid,
+                    "shortname": shortname,
+                    "description": contract_name,
+                }
+            )
+        if len(matched) >= limit:
+            break
+    return matched
 
 
 def _split_dt(value: str) -> tuple[str, str]:
@@ -195,6 +280,7 @@ def build_daily_chart(ticker: str, daily_rows: List[dict]) -> str:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     context.user_data["awaiting_futures_ticker"] = False
+    context.user_data["awaiting_futures_search_phrase"] = False
     msg = (
         "Бот перезапущен.\n\n"
         "Доступные команды:\n"
@@ -321,9 +407,9 @@ def _build_bonds_kwargs(filters_data: dict) -> dict:
     }
 
 
-async def _send_futures_payload(update: Update, ticker: str) -> None:
+async def _send_futures_payload(update: Update, ticker: str) -> bool:
     if not update.message:
-        return
+        return False
 
     service = build_service()
     await update.message.reply_text(f"Получаю свечи для {ticker}...")
@@ -335,9 +421,17 @@ async def _send_futures_payload(update: Update, ticker: str) -> None:
         await update.message.reply_text(
             "Такой тикер не существует.\n"
             "Список доступных тикеров фьючерсов MOEX:\n"
-            f"{FUTURES_TICKERS_URL}"
+            f"{FUTURES_TICKERS_URL}",
+            disable_web_page_preview=True,
         )
-        return
+        await update.message.reply_text(
+            "Введите фразу для поиска фьючерсов (например: золото).\n"
+            "Если хотите заново ввести тикер, нажмите кнопку ниже.",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton("Отказаться от поиска", callback_data=FUTURES_CANCEL_SEARCH_CB)]]
+            ),
+        )
+        return False
 
     file_path = await asyncio.to_thread(build_excel, ticker, hourly_rows, daily_rows)
     chart_path = await asyncio.to_thread(build_daily_chart, ticker, daily_rows)
@@ -395,6 +489,7 @@ async def _send_futures_payload(update: Update, ticker: str) -> None:
             os.remove(file_path)
         if os.path.exists(chart_path):
             os.remove(chart_path)
+    return True
 
 
 async def futures(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -403,11 +498,15 @@ async def futures(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if context.args:
         context.user_data["awaiting_futures_ticker"] = False
+        context.user_data["awaiting_futures_search_phrase"] = False
         ticker = context.args[-1].upper()
-        await _send_futures_payload(update, ticker)
+        ok = await _send_futures_payload(update, ticker)
+        if not ok:
+            context.user_data["awaiting_futures_search_phrase"] = True
         return
 
     context.user_data["awaiting_futures_ticker"] = True
+    context.user_data["awaiting_futures_search_phrase"] = False
     await update.message.reply_text("Введите тикер фьючерса, например: RIH6")
 
 
@@ -421,16 +520,64 @@ async def bonds(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def futures_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if query is None or (query.data or "") != FUTURES_CANCEL_SEARCH_CB:
+        return
+
+    await query.answer()
+    context.user_data["awaiting_futures_search_phrase"] = False
+    context.user_data["awaiting_futures_ticker"] = True
+
+    if query.message:
+        try:
+            await query.edit_message_text("Поиск отменен.")
+        except BadRequest as exc:
+            if "Message is not modified" not in str(exc):
+                raise
+        await query.message.reply_text("Введите тикер фьючерса, например: RIH6")
+
+
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not update.message:
         return
     text = (update.message.text or "").strip()
     if not text:
         return
+    if context.user_data.get("awaiting_futures_search_phrase"):
+        context.user_data["awaiting_futures_search_phrase"] = False
+        phrase = text
+        try:
+            results = await asyncio.to_thread(_search_futures_by_phrase, phrase)
+        except Exception:
+            logger.exception("Failed to search futures by phrase")
+            await update.message.reply_text(
+                "Не удалось выполнить поиск фьючерсов. Попробуйте позже или проверьте список:\n"
+                f"{FUTURES_TICKERS_URL}"
+            )
+            return
+        if not results:
+            await update.message.reply_text(
+                "По вашему запросу ничего не найдено.\n"
+                "Проверьте формулировку или смотрите все тикеры:\n"
+                f"{FUTURES_TICKERS_URL}"
+            )
+            return
+
+        lines = [f"Найдено фьючерсов: {len(results)}", ""]
+        for idx, item in enumerate(results, start=1):
+            name = item["description"] or item["shortname"] or "Без названия"
+            lines.append(f"{idx}. {item['secid']} — {name}")
+        lines.append("")
+        lines.append("Введите нужный тикер командой /futures <ТИКЕР>.")
+        await update.message.reply_text("\n".join(lines))
+        return
     if context.user_data.get("awaiting_futures_ticker"):
         context.user_data["awaiting_futures_ticker"] = False
         ticker = text.split()[-1].upper()
-        await _send_futures_payload(update, ticker)
+        ok = await _send_futures_payload(update, ticker)
+        if not ok:
+            context.user_data["awaiting_futures_search_phrase"] = True
         return
 
     await update.message.reply_text("Используйте /futures для запроса по фьючерсу или /bonds для облигаций.")
@@ -542,8 +689,10 @@ def main() -> None:
     )
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("futures", futures))
+    app.add_handler(CommandHandler("future", futures))
     app.add_handler(CommandHandler("bonds", bonds))
-    app.add_handler(CallbackQueryHandler(bonds_callback))
+    app.add_handler(CallbackQueryHandler(futures_callback, pattern=r"^futures:"))
+    app.add_handler(CallbackQueryHandler(bonds_callback, pattern=r"^bonds:"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_error_handler(error_handler)
     app.run_polling(allowed_updates=["message", "callback_query"])
