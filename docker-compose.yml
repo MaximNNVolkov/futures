@@ -5,3 +5,13 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+
+  web:
+    build: .
+    container_name: moex-web
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: uvicorn src.web.app:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"

@@ -30,6 +30,24 @@ echo "TELEGRAM_BOT_TOKEN=YOUR_TOKEN" > .env
 python -m src.bot
 ```
 
+Запуск веб API:
+
+```bash
+uvicorn src.web.app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Веб-интерфейс: `http://127.0.0.1:8000/`  
+Swagger API: `http://127.0.0.1:8000/docs`
+
+Проверка:
+
+```bash
+curl "http://127.0.0.1:8000/health"
+curl "http://127.0.0.1:8000/api/futures/search?q=gold"
+curl "http://127.0.0.1:8000/api/futures/candles?ticker=RIH6"
+curl "http://127.0.0.1:8000/api/bonds/search?currency=RUB&limit=3"
+```
+
 ## Dev стенд (локально)
 
 Создать отдельное dev‑окружение:
@@ -46,16 +64,23 @@ cp .env.dev.example .env.dev
 make dev-up
 ```
 
+После запуска доступны:
+- бот в контейнере `moex-bot-dev`
+- веб-интерфейс `http://127.0.0.1:8000/`
+
 Если запускаете вручную, задавайте ASCII project name:
 
 ```bash
-COMPOSE_PROJECT_NAME=moexbotdev docker compose -f docker-compose.dev.yml --env-file .env.dev up -d --build
+COMPOSE_PROJECT_NAME=moexbotdev docker compose -f docker-compose.dev.yml --env-file .env.dev build bot
+COMPOSE_PROJECT_NAME=moexbotdev docker compose -f docker-compose.dev.yml --env-file .env.dev build web
+COMPOSE_PROJECT_NAME=moexbotdev docker compose -f docker-compose.dev.yml --env-file .env.dev up -d
 ```
 
 Логи:
 
 ```bash
 make dev-logs
+make dev-logs-web
 ```
 
 Остановка:
