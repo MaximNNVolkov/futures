@@ -12,6 +12,39 @@ const candlesCanvas = document.getElementById("candles-canvas");
 const bondsForm = document.getElementById("bonds-form");
 const bondsStatus = document.getElementById("bonds-status");
 const bondsTbody = document.querySelector("#bonds-table tbody");
+let lastDailyRows = [];
+
+function setViewportSizeVars() {
+  const vh = window.innerHeight * 0.01;
+  const vw = document.documentElement.clientWidth * 0.01;
+  document.documentElement.style.setProperty("--vh", `${vh}px`);
+  document.documentElement.style.setProperty("--vw", `${vw}px`);
+}
+
+function initTelegramWebApp() {
+  const tg = window.Telegram?.WebApp;
+  if (!tg) return;
+  try {
+    tg.ready();
+    tg.expand();
+    if (typeof tg.disableVerticalSwipes === "function") {
+      tg.disableVerticalSwipes();
+    }
+  } catch (error) {
+    console.warn("Telegram WebApp init failed:", error);
+  }
+}
+
+function resizeCandlesCanvas() {
+  const ratio = window.devicePixelRatio || 1;
+  const rect = candlesCanvas.getBoundingClientRect();
+  const cssWidth = Math.max(280, Math.floor(rect.width || 320));
+  const cssHeight = Math.max(180, Math.floor(rect.height || 240));
+  candlesCanvas.width = Math.floor(cssWidth * ratio);
+  candlesCanvas.height = Math.floor(cssHeight * ratio);
+  const ctx = candlesCanvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+}
 
 function setStatus(target, text, isError = false) {
   target.textContent = text || "";
@@ -53,9 +86,11 @@ function renderFuturesSearch(results) {
 }
 
 function drawCandles(dailyRows) {
+  lastDailyRows = dailyRows;
+  resizeCandlesCanvas();
   const ctx = candlesCanvas.getContext("2d");
-  const width = candlesCanvas.width;
-  const height = candlesCanvas.height;
+  const width = Math.floor(candlesCanvas.width / (window.devicePixelRatio || 1));
+  const height = Math.floor(candlesCanvas.height / (window.devicePixelRatio || 1));
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
@@ -213,4 +248,14 @@ bondsForm.addEventListener("submit", async (event) => {
 });
 
 drawCandles([]);
+window.addEventListener("resize", () => drawCandles(lastDailyRows));
+window.addEventListener("resize", setViewportSizeVars);
+window.addEventListener("orientationchange", () => {
+  setTimeout(() => {
+    setViewportSizeVars();
+    drawCandles(lastDailyRows);
+  }, 150);
+});
 
+setViewportSizeVars();
+initTelegramWebApp();

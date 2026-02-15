@@ -15,7 +15,15 @@ from matplotlib import pyplot as plt
 from matplotlib import dates as mdates
 from matplotlib.patches import Rectangle
 from dotenv import load_dotenv
-from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import (
+    BotCommand,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+    Update,
+    WebAppInfo,
+)
 from telegram.error import BadRequest, TimedOut
 from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
@@ -70,6 +78,10 @@ def build_service() -> CandlesService:
     client = MoexClient(base_url=settings.moex_base_url)
     gateway = FuturesCandlesGateway(client=client)
     return CandlesService(gateway=gateway, storage=None)
+
+
+def _get_web_app_url() -> str:
+    return os.getenv("WEB_APP_URL", "").strip()
 
 
 def _normalize_text(value: str | None) -> str:
@@ -287,7 +299,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/futures - получить график и Excel по фьючерсу\n"
         "/bonds - таблица облигаций"
     )
-    await update.message.reply_text(msg)
+    reply_markup = None
+    web_app_url = _get_web_app_url()
+    if web_app_url:
+        reply_markup = ReplyKeyboardMarkup(
+            [
+                [
+                    KeyboardButton(
+                        text="Открыть Web App",
+                        web_app=WebAppInfo(url=web_app_url),
+                    )
+                ]
+            ],
+            resize_keyboard=True,
+        )
+    await update.message.reply_text(msg, reply_markup=reply_markup)
 
 
 async def _send_long_text(update: Update, text: str) -> None:
