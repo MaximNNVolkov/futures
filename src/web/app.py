@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import date
 from pathlib import Path
 from typing import Any, Literal
 
@@ -16,6 +15,7 @@ from moex_lib.filters.filter_types import BondType, CouponType
 from moex_lib.filters.maturity_delta import MaturityDelta
 from moex_lib.models.bond import Bond
 from moex_lib.services.bond_search_service import BondSearchService
+from moex_lib.utils.helpers import select_top_bonds_by_coupon_yield
 from src.config import settings
 from src.moex.client import MoexClient
 from src.moex.futures import FuturesCandlesGateway
@@ -214,8 +214,7 @@ async def search_bonds(
     )
     service = BondSearchService(BondsApi())
     bonds = await run_in_threadpool(service.search, filters)
-    bonds.sort(key=lambda b: b.maturity_date or date.max)
-    bonds = bonds[:limit]
+    bonds = await run_in_threadpool(select_top_bonds_by_coupon_yield, bonds, limit)
 
     return {
         "count": len(bonds),

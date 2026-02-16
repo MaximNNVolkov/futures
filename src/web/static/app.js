@@ -67,6 +67,120 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;");
 }
 
+function toFloat(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const normalized = value.replace(",", ".");
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function couponsPerYear(bond) {
+  const couponPeriod = toFloat(bond.coupon_period);
+  if (couponPeriod && couponPeriod > 0) return 365 / couponPeriod;
+  const couponFrequency = toFloat(bond.coupon_frequency);
+  if (couponFrequency && couponFrequency > 0) return couponFrequency;
+  return null;
+}
+
+function priceMoney(bond) {
+  const currentPrice = toFloat(bond.current_price);
+  const faceValue = toFloat(bond.face_value);
+  if (currentPrice === null || faceValue === null) return null;
+  return (faceValue * currentPrice) / 100;
+}
+
+function annualCouponAmount(bond) {
+  const nextCoupon = toFloat(bond.next_coupon);
+  if (nextCoupon === null) return null;
+  const perYear = couponsPerYear(bond);
+  if (perYear === null) return null;
+  return nextCoupon * perYear;
+}
+
+function calcCouponYield(bond) {
+  const price = priceMoney(bond);
+  const annualCoupon = annualCouponAmount(bond);
+  if (price === null || annualCoupon === null || price <= 0) return null;
+  return (annualCoupon / price) * 100;
+}
+
+function calcTotalYield(bond) {
+  const price = priceMoney(bond);
+  const annualCoupon = annualCouponAmount(bond);
+  if (price === null || annualCoupon === null || price <= 0 || !bond.maturity_date) return null;
+  const maturityDate = new Date(bond.maturity_date);
+  if (Number.isNaN(maturityDate.getTime())) return null;
+  const now = new Date();
+  const daysToMaturity = Math.floor((maturityDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (daysToMaturity <= 0) return null;
+  const yearsToMaturity = daysToMaturity / 365;
+  if (yearsToMaturity <= 0) return null;
+  const faceValue = toFloat(bond.face_value);
+  if (faceValue === null) return null;
+  const redemptionGainPerYear = (faceValue - price) / yearsToMaturity;
+  return ((annualCoupon + redemptionGainPerYear) / price) * 100;
+}
+
+function fmtNum(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "н/д";
+  return value.toFixed(2).replace(".", ",");
+}
+
+function formatCouponType(value) {
+  const mapping = {
+    fixed: "фиксированный",
+    float: "плавающий",
+    none: "без купона",
+    unknown: "неизвестно",
+  };
+  if (!value) return "н/д";
+  return mapping[value] || "неизвестно";
+}
+
+function formatCurrency(code) {
+  if (!code) return "н/д";
+  const mapping = {
+    RUB: "руб",
+    RUR: "руб",
+    SUR: "руб",
+    USD: "долл. США",
+    EUR: "евро",
+    CNY: "юань",
+    GBP: "фунт стерл.",
+    CHF: "швейц. франк",
+    JPY: "иена",
+  };
+  return mapping[code] || `валюта ${code}`;
+}
+
+function formatNominal(bond) {
+  const faceValue = toFloat(bond.face_value);
+  const currency = formatCurrency(bond.currency);
+  const amount =
+    faceValue === null ? "н/д" : Number.isInteger(faceValue) ? String(faceValue) : faceValue.toFixed(2).replace(".", ",");
+  if (amount === "н/д" && currency === "н/д") return "н/д";
+  if (currency === "н/д") return amount;
+  if (amount === "н/д") return currency;
+  return `${amount} ${currency}`;
+}
+
+function formatMaturity(value) {
+  if (!value) return "-";
+  const maturityDate = new Date(value);
+  if (Number.isNaN(maturityDate.getTime())) return String(value);
+  const now = new Date();
+  const daysLeft = Math.floor((maturityDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (daysLeft <= 0) return `${value} (погашена)`;
+  const totalMonths = Math.max(0, Math.floor(daysLeft / 30));
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+  return `${value} (${years}г ${months}м)`;
+}
+
 function renderFuturesSearch(results) {
   futuresSearchResults.innerHTML = "";
   if (!results.length) {
@@ -168,21 +282,26 @@ function drawCandles(dailyRows) {
 function renderBonds(bonds) {
   bondsTbody.innerHTML = "";
   if (!bonds.length) {
-    bondsTbody.innerHTML = "<tr><td colspan='6'>Нет результатов</td></tr>";
+    bondsTbody.innerHTML = "<tr><td colspan='7'>Нет результатов</td></tr>";
     return;
   }
   bondsTbody.innerHTML = bonds
     .map(
-      (bond) => `
+      (bond) => {
+        const couponYield = calcCouponYield(bond);
+        const totalYield = calcTotalYield(bond);
+        return `
       <tr>
-        <td>${escapeHtml(bond.secid)}</td>
         <td>${escapeHtml(bond.name)}</td>
-        <td>${escapeHtml(bond.maturity_date || "-")}</td>
-        <td>${escapeHtml(bond.coupon_type || "-")}</td>
-        <td>${escapeHtml(bond.currency || "-")}</td>
-        <td>${bond.current_price ?? "-"}</td>
+        <td>${escapeHtml(formatMaturity(bond.maturity_date))}</td>
+        <td>${escapeHtml(`${formatCouponType(bond.coupon_type)}, период ${bond.coupon_period ?? "н/д"} дн`)}</td>
+        <td>${escapeHtml(`${fmtNum(couponYield)}%`)}</td>
+        <td>${escapeHtml(`${fmtNum(totalYield)}%`)}</td>
+        <td>${escapeHtml(formatNominal(bond))}</td>
+        <td>${escapeHtml(`${fmtNum(toFloat(bond.current_price))}%`)}</td>
       </tr>
-    `,
+    `;
+      },
     )
     .join("");
 }

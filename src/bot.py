@@ -5,7 +5,6 @@ import asyncio
 import tempfile
 import logging
 from datetime import datetime
-from dataclasses import dataclass
 from typing import List
 
 from openpyxl import Workbook
@@ -19,6 +18,7 @@ from telegram import (
     BotCommand,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    ReplyKeyboardRemove,
     Update,
 )
 from telegram.error import BadRequest, TimedOut
@@ -64,11 +64,6 @@ CURRENCY_CYCLE = [None, "RUB", "USD", "EUR", "CNY"]
 LIMIT_CYCLE = [3, 5, 10, 20, 50]
 MATURITY_FROM_YEARS_CYCLE = [0, 1, 3]
 MATURITY_TO_YEARS_CYCLE = [3, 5, 10, 50]
-
-
-@dataclass
-class BotConfig:
-    token: str
 
 
 def build_service() -> CandlesService:
@@ -292,14 +287,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "/futures - получить график и Excel по фьючерсу\n"
         "/bonds - таблица облигаций"
     )
-    await update.message.reply_text(msg)
-
-
-async def _send_long_text(update: Update, text: str) -> None:
-    if not update.message:
-        return
-    for i in range(0, len(text), MAX_MESSAGE_LEN):
-        await update.message.reply_text(text[i : i + MAX_MESSAGE_LEN])
+    await update.message.reply_text(msg, reply_markup=ReplyKeyboardRemove())
 
 
 def _get_bonds_filters(context: ContextTypes.DEFAULT_TYPE) -> dict:
