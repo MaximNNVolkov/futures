@@ -124,6 +124,39 @@ h2 {
   font-size: 1.12rem;
 }
 
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.tab-btn {
+  background: #fff;
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+
+.tab-btn:hover {
+  filter: none;
+  border-color: color-mix(in srgb, var(--accent), var(--line) 40%);
+  color: var(--text);
+}
+
+.tab-btn.is-active {
+  background: linear-gradient(160deg, var(--accent), #0a7359);
+  color: #fff;
+  border-color: transparent;
+}
+
+.tab-panel {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.tab-panel[hidden] {
+  display: none;
+}
+
 .toolbar {
   display: flex;
   gap: 0.6rem;
@@ -275,6 +308,11 @@ th {
 
   .toolbar {
     flex-direction: column;
+  }
+
+  .tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 
   .toolbar button {

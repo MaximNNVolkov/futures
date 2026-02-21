@@ -12,6 +12,8 @@ const candlesCanvas = document.getElementById("candles-canvas");
 const bondsForm = document.getElementById("bonds-form");
 const bondsStatus = document.getElementById("bonds-status");
 const bondsTbody = document.querySelector("#bonds-table tbody");
+const tabButtons = Array.from(document.querySelectorAll(".tab-btn"));
+const tabPanels = Array.from(document.querySelectorAll(".tab-panel"));
 let lastDailyRows = [];
 
 function setViewportSizeVars() {
@@ -304,6 +306,51 @@ function renderBonds(bonds) {
       },
     )
     .join("");
+}
+
+function activateTab(panelId, focusActiveButton = false) {
+  const activeButton = tabButtons.find((button) => button.dataset.tabTarget === panelId);
+  if (!activeButton) return;
+
+  tabButtons.forEach((button) => {
+    const isActive = button === activeButton;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+    button.tabIndex = isActive ? 0 : -1;
+    if (isActive && focusActiveButton) {
+      button.focus();
+    }
+  });
+
+  tabPanels.forEach((panel) => {
+    const isActive = panel.id === panelId;
+    panel.classList.toggle("is-active", isActive);
+    panel.hidden = !isActive;
+  });
+
+  if (panelId === "panel-futures") {
+    requestAnimationFrame(() => drawCandles(lastDailyRows));
+  }
+}
+
+if (tabButtons.length && tabPanels.length) {
+  tabButtons.forEach((button, index) => {
+    button.addEventListener("click", () => {
+      activateTab(button.dataset.tabTarget);
+    });
+
+    button.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      event.preventDefault();
+      const step = event.key === "ArrowRight" ? 1 : -1;
+      const nextIndex = (index + step + tabButtons.length) % tabButtons.length;
+      const nextButton = tabButtons[nextIndex];
+      activateTab(nextButton.dataset.tabTarget, true);
+    });
+  });
+
+  const selectedTab = tabButtons.find((button) => button.getAttribute("aria-selected") === "true") || tabButtons[0];
+  activateTab(selectedTab.dataset.tabTarget);
 }
 
 futuresSearchForm.addEventListener("submit", async (event) => {

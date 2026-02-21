@@ -16,94 +16,124 @@
         <p class="subtitle">Поиск контрактов, свечи и выборка облигаций без Telegram.</p>
       </header>
 
-      <section class="card reveal" style="--delay: 0.05s">
-        <h2>Поиск фьючерсов по описанию</h2>
-        <form id="futures-search-form" class="toolbar">
-          <input id="futures-query" placeholder="Например: золото" required />
-          <button type="submit">Найти</button>
-        </form>
-        <div id="futures-search-status" class="status"></div>
-        <div id="futures-search-results" class="list"></div>
-      </section>
+      <nav class="tabs reveal" style="--delay: 0.05s" role="tablist" aria-label="Разделы">
+        <button
+          id="tab-bonds"
+          class="tab-btn is-active"
+          type="button"
+          role="tab"
+          aria-selected="true"
+          aria-controls="panel-bonds"
+          data-tab-target="panel-bonds"
+        >
+          Облигации
+        </button>
+        <button
+          id="tab-futures"
+          class="tab-btn"
+          type="button"
+          role="tab"
+          aria-selected="false"
+          aria-controls="panel-futures"
+          data-tab-target="panel-futures"
+          tabindex="-1"
+        >
+          Фьючерсы
+        </button>
+      </nav>
 
-      <section class="card reveal" style="--delay: 0.12s">
-        <h2>Свечи фьючерса</h2>
-        <form id="candles-form" class="toolbar">
-          <input id="candles-ticker" placeholder="Тикер, например RIH6" required />
-          <button type="submit">Показать</button>
-        </form>
-        <div id="candles-status" class="status"></div>
-        <div id="candles-meta" class="meta"></div>
-        <canvas id="candles-canvas"></canvas>
-      </section>
-
-      <section class="card reveal" style="--delay: 0.2s">
-        <h2>Подбор облигаций</h2>
-        <form id="bonds-form" class="filters">
-          <label>
-            Валюта
-            <select id="bonds-currency">
-              <option value="">Любая</option>
-              <option value="RUB">RUB</option>
-              <option value="USD">USD</option>
-              <option value="EUR">EUR</option>
-              <option value="CNY">CNY</option>
-            </select>
-          </label>
-          <label>
-            Тип купона
-            <select id="bonds-coupon-type">
-              <option value="">Любой</option>
-              <option value="fixed">fixed</option>
-              <option value="float">float</option>
-              <option value="none">none</option>
-            </select>
-          </label>
-          <label>
-            Тип облигации
-            <select id="bonds-type">
-              <option value="">Любой</option>
-              <option value="ofz">ofz</option>
-              <option value="corporate">corporate</option>
-              <option value="municipal">municipal</option>
-            </select>
-          </label>
-          <label>
-            Срок от (лет)
-            <input id="bonds-years-from" type="number" min="0" max="50" value="0" />
-          </label>
-          <label>
-            Срок до (лет)
-            <input id="bonds-years-to" type="number" min="0" max="50" value="50" />
-          </label>
-          <label>
-            Лимит
-            <input id="bonds-limit" type="number" min="1" max="50" value="3" />
-          </label>
-          <div class="toolbar">
-            <button type="submit">Подобрать</button>
+      <section id="panel-bonds" class="tab-panel is-active" role="tabpanel" aria-labelledby="tab-bonds">
+        <section class="card reveal" style="--delay: 0.12s">
+          <h2>Подбор облигаций</h2>
+          <form id="bonds-form" class="filters">
+            <label>
+              Валюта
+              <select id="bonds-currency">
+                <option value="">Любая</option>
+                <option value="RUB">RUB</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="CNY">CNY</option>
+              </select>
+            </label>
+            <label>
+              Тип купона
+              <select id="bonds-coupon-type">
+                <option value="">Любой</option>
+                <option value="fixed">fixed</option>
+                <option value="float">float</option>
+                <option value="none">none</option>
+              </select>
+            </label>
+            <label>
+              Тип облигации
+              <select id="bonds-type">
+                <option value="">Любой</option>
+                <option value="ofz">ofz</option>
+                <option value="corporate">corporate</option>
+                <option value="municipal">municipal</option>
+              </select>
+            </label>
+            <label>
+              Срок от (лет)
+              <input id="bonds-years-from" type="number" min="0" max="50" value="0" />
+            </label>
+            <label>
+              Срок до (лет)
+              <input id="bonds-years-to" type="number" min="0" max="50" value="50" />
+            </label>
+            <label>
+              Лимит
+              <input id="bonds-limit" type="number" min="1" max="50" value="3" />
+            </label>
+            <div class="toolbar">
+              <button type="submit">Подобрать</button>
+            </div>
+          </form>
+          <div id="bonds-status" class="status"></div>
+          <div class="table-wrap">
+            <table id="bonds-table">
+              <thead>
+                <tr>
+                  <th>Название</th>
+                  <th>Погашение</th>
+                  <th>Купон</th>
+                  <th>Купонная доходность</th>
+                  <th>Полная доходность</th>
+                  <th>Номинал</th>
+                  <th>Цена</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
           </div>
-        </form>
-        <div id="bonds-status" class="status"></div>
-        <div class="table-wrap">
-          <table id="bonds-table">
-            <thead>
-              <tr>
-                <th>Название</th>
-                <th>Погашение</th>
-                <th>Купон</th>
-                <th>Купонная доходность</th>
-                <th>Полная доходность</th>
-                <th>Номинал</th>
-                <th>Цена</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
+        </section>
+      </section>
+
+      <section id="panel-futures" class="tab-panel" role="tabpanel" aria-labelledby="tab-futures" hidden>
+        <section class="card reveal" style="--delay: 0.12s">
+          <h2>Поиск фьючерсов по описанию</h2>
+          <form id="futures-search-form" class="toolbar">
+            <input id="futures-query" placeholder="Например: золото" required />
+            <button type="submit">Найти</button>
+          </form>
+          <div id="futures-search-status" class="status"></div>
+          <div id="futures-search-results" class="list"></div>
+        </section>
+
+        <section class="card reveal" style="--delay: 0.2s">
+          <h2>Свечи фьючерса</h2>
+          <form id="candles-form" class="toolbar">
+            <input id="candles-ticker" placeholder="Тикер, например RIH6" required />
+            <button type="submit">Показать</button>
+          </form>
+          <div id="candles-status" class="status"></div>
+          <div id="candles-meta" class="meta"></div>
+          <canvas id="candles-canvas"></canvas>
+        </section>
       </section>
     </main>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=20260221-1"></script>
   </body>
 </html>
