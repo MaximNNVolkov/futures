@@ -37,6 +37,7 @@ class MoexClient:
     ) -> List[Dict[str, Any]]:
         start = 0
         all_rows: List[Dict[str, Any]] = []
+        prev_page_signature: tuple[int, str, str] | None = None
         while True:
             page_params = dict(params)
             page_params["start"] = start
@@ -45,9 +46,14 @@ class MoexClient:
             rows = self._parse_table(payload, table)
             if not rows:
                 break
-            all_rows.extend(rows)
-            if len(rows) < page_size:
-                break
-            start += page_size
-        return all_rows
 
+            # Some MOEX endpoints cap page size below requested `limit`.
+            # Move by actual page length and guard against repeated pages.
+            signature = (len(rows), repr(rows[0]), repr(rows[-1]))
+            if signature == prev_page_signature:
+                break
+            prev_page_signature = signature
+
+            all_rows.extend(rows)
+            start += len(rows)
+        return all_rows

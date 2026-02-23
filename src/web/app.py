@@ -23,6 +23,7 @@ from src.services.candles import CandlesService
 
 MAX_FUTURES_SEARCH_RESULTS = 50
 FUTURES_CONTRACTNAME_CACHE: dict[str, str] = {}
+FUTURES_META_CACHE: dict[str, dict[str, str]] = {}
 STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(
@@ -86,6 +87,31 @@ def _get_contractname_by_secid(client: MoexClient, secid: str) -> str:
     return result
 
 
+def _get_futures_meta_by_secid(client: MoexClient, secid: str) -> dict[str, str]:
+    cached = FUTURES_META_CACHE.get(secid)
+    if cached is not None:
+        return cached
+
+    rows = client.get_table(
+        path=f"engines/futures/markets/forts/securities/{secid}.json",
+        params={"iss.meta": "off", "iss.only": "securities"},
+        table="securities",
+    )
+    row = rows[0] if rows else {}
+    shortname = str(row.get("SHORTNAME") or "").strip()
+    expiration_date = str(row.get("LASTTRADEDATE") or row.get("LASTDELDATE") or "").strip()
+    contract_name = _get_contractname_by_secid(client, secid) or shortname
+
+    payload = {
+        "secid": secid,
+        "shortname": shortname,
+        "contract_name": contract_name,
+        "expiration_date": expiration_date,
+    }
+    FUTURES_META_CACHE[secid] = payload
+    return payload
+
+
 def _search_futures_by_phrase(phrase: str, limit: int) -> list[dict[str, str]]:
     query = _normalize_text(phrase)
     if not query:
@@ -111,12 +137,14 @@ def _search_futures_by_phrase(phrase: str, limit: int) -> list[dict[str, str]]:
 
         shortname = str(row.get("SHORTNAME") or "").strip()
         contract_name = _get_contractname_by_secid(client, secid)
+        expiration_date = str(row.get("LASTTRADEDATE") or row.get("LASTDELDATE") or "").strip()
         if query in _normalize_text(contract_name):
             matched.append(
                 {
                     "secid": secid,
                     "shortname": shortname,
                     "contract_name": contract_name,
+                    "expiration_date": expiration_date,
                 }
             )
         if len(matched) >= limit:
@@ -164,6 +192,7 @@ async def futures_candles(
     ticker: str = Query(..., min_length=1, max_length=32, description="Futures ticker, e.g. RIH6"),
 ) -> dict[str, Any]:
     service = _build_candles_service()
+    client = MoexClient(base_url=settings.moex_base_url)
     ticker_upper = ticker.strip().upper()
     hourly = await run_in_threadpool(service.get_hourly_1y, ticker_upper)
     daily = await run_in_threadpool(service.get_daily_3y, ticker_upper)
@@ -174,8 +203,12 @@ async def futures_candles(
             detail="Такой тикер не существует.",
         )
 
+    meta = await run_in_threadpool(_get_futures_meta_by_secid, client, ticker_upper)
     return {
         "ticker": ticker_upper,
+        "shortname": meta.get("shortname", ""),
+        "contract_name": meta.get("contract_name", ""),
+        "expiration_date": meta.get("expiration_date", ""),
         "hourly_count": len(hourly),
         "daily_count": len(daily),
         "hourly": hourly,

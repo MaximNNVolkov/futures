@@ -205,6 +205,13 @@ button:hover {
 .meta {
   margin-top: 0.4rem;
   color: var(--muted);
+  display: grid;
+  gap: 0.2rem;
+}
+
+.meta-label {
+  font-weight: 700;
+  color: var(--text);
 }
 
 .list {
@@ -227,8 +234,31 @@ button:hover {
   color: var(--accent-2);
 }
 
+.ticker-link {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: none;
+  color: var(--accent-2);
+  font-weight: 800;
+  font-size: 1rem;
+  text-decoration: underline;
+  text-underline-offset: 0.1em;
+  cursor: pointer;
+}
+
+.ticker-link:hover {
+  filter: none;
+  color: #bb4f1f;
+}
+
 .contract {
   color: var(--text);
+}
+
+.contract-expiry {
+  color: var(--muted);
+  font-size: 0.92rem;
 }
 
 #candles-canvas {

@@ -183,6 +183,42 @@ function formatMaturity(value) {
   return `${value} (${years}г ${months}м)`;
 }
 
+function formatIsoDate(value) {
+  if (!value) return "н/д";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString("ru-RU");
+}
+
+function renderCandlesMeta(payload) {
+  const title = payload.contract_name || payload.shortname || payload.ticker;
+  const expirationDate = formatIsoDate(payload.expiration_date);
+  candlesMeta.innerHTML = `
+    <div><span class="meta-label">Контракт:</span> ${escapeHtml(title || "н/д")}</div>
+    <div><span class="meta-label">Экспирация:</span> ${escapeHtml(expirationDate)}</div>
+    <div><span class="meta-label">Свечи:</span> 1D (${payload.daily_count} шт., 3 года) и 1H (${payload.hourly_count} шт., 1 год)</div>
+  `;
+}
+
+async function loadCandlesForTicker(ticker) {
+  const normalizedTicker = ticker.trim().toUpperCase();
+  if (!normalizedTicker) return;
+  candlesTickerInput.value = normalizedTicker;
+  setStatus(candlesStatus, "Загружаю свечи...");
+  candlesMeta.textContent = "";
+
+  try {
+    const payload = await fetchJson(`/api/futures/candles?ticker=${encodeURIComponent(normalizedTicker)}`);
+    setStatus(candlesStatus, `Тикер: ${payload.ticker}`);
+    renderCandlesMeta(payload);
+    drawCandles(payload.daily || []);
+  } catch (error) {
+    setStatus(candlesStatus, error.message, true);
+    candlesMeta.textContent = "";
+    drawCandles([]);
+  }
+}
+
 function renderFuturesSearch(results) {
   futuresSearchResults.innerHTML = "";
   if (!results.length) {
@@ -193,8 +229,11 @@ function renderFuturesSearch(results) {
     .map(
       (item) => `
       <article class="list-item">
-        <div class="ticker">${escapeHtml(item.secid)}</div>
+        <div>
+          <button type="button" class="ticker-link" data-ticker="${escapeHtml(item.secid)}">${escapeHtml(item.secid)}</button>
+        </div>
         <div class="contract">${escapeHtml(item.contract_name || item.shortname || "Без названия")}</div>
+        <div class="contract-expiry">Экспирация: ${escapeHtml(formatIsoDate(item.expiration_date))}</div>
       </article>
     `,
     )
@@ -367,21 +406,21 @@ futuresSearchForm.addEventListener("submit", async (event) => {
   }
 });
 
+futuresSearchResults.addEventListener("click", async (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const tickerButton = target.closest(".ticker-link");
+  if (!(tickerButton instanceof HTMLElement)) return;
+  const ticker = tickerButton.dataset.ticker || "";
+  if (!ticker) return;
+  await loadCandlesForTicker(ticker);
+});
+
 candlesForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const ticker = candlesTickerInput.value.trim();
   if (!ticker) return;
-  setStatus(candlesStatus, "Загружаю свечи...");
-  candlesMeta.textContent = "";
-  try {
-    const payload = await fetchJson(`/api/futures/candles?ticker=${encodeURIComponent(ticker)}`);
-    setStatus(candlesStatus, `Готово: ${payload.ticker}`);
-    candlesMeta.textContent = `daily: ${payload.daily_count}, hourly: ${payload.hourly_count}`;
-    drawCandles(payload.daily || []);
-  } catch (error) {
-    setStatus(candlesStatus, error.message, true);
-    drawCandles([]);
-  }
+  await loadCandlesForTicker(ticker);
 });
 
 bondsForm.addEventListener("submit", async (event) => {
