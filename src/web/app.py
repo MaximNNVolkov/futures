@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from openpyxl import Workbook
 from starlette.concurrency import run_in_threadpool
 
 from moex_lib.api.bonds_api import BondsApi
@@ -44,6 +46,44 @@ def _normalize_text(value: str | None) -> str:
     if not value:
         return ""
     return value.lower().replace("ё", "е").strip()
+
+
+def _split_dt(value: str) -> tuple[str, str]:
+    parts = value.split()
+    if len(parts) == 1:
+        return parts[0], ""
+    return parts[0], parts[1]
+
+
+def _write_candles_sheet(ws, title: str, rows: list[dict[str, Any]]) -> None:
+    ws.title = title
+    ws.append(["Date", "Time", "Open", "High", "Low", "Close", "Volume"])
+    for row in rows:
+        date_part, time_part = _split_dt(str(row.get("begin") or ""))
+        ws.append(
+            [
+                date_part,
+                time_part,
+                row.get("open"),
+                row.get("high"),
+                row.get("low"),
+                row.get("close"),
+                row.get("volume"),
+            ]
+        )
+
+
+def _build_candles_excel(hourly_rows: list[dict[str, Any]], daily_rows: list[dict[str, Any]]) -> BytesIO:
+    wb = Workbook()
+    ws_hourly = wb.active
+    _write_candles_sheet(ws_hourly, "hourly", hourly_rows)
+    ws_daily = wb.create_sheet("daily")
+    _write_candles_sheet(ws_daily, "daily", daily_rows)
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
 
 
 def _get_contractname_by_secid(client: MoexClient, secid: str) -> str:
@@ -214,6 +254,28 @@ async def futures_candles(
         "hourly": hourly,
         "daily": daily,
     }
+
+
+@app.get("/api/futures/candles.xlsx")
+async def futures_candles_excel(
+    ticker: str = Query(..., min_length=1, max_length=32, description="Futures ticker, e.g. RIH6"),
+) -> StreamingResponse:
+    service = _build_candles_service()
+    ticker_upper = ticker.strip().upper()
+    hourly = await run_in_threadpool(service.get_hourly_1y, ticker_upper)
+    daily = await run_in_threadpool(service.get_daily_3y, ticker_upper)
+
+    if not hourly and not daily:
+        raise HTTPException(status_code=404, detail="Такой тикер не существует.")
+
+    output = await run_in_threadpool(_build_candles_excel, hourly, daily)
+    filename = f"{ticker_upper}_candles.xlsx"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
 
 
 @app.get("/api/bonds/search")

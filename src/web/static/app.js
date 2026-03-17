@@ -8,6 +8,7 @@ const candlesTickerInput = document.getElementById("candles-ticker");
 const candlesStatus = document.getElementById("candles-status");
 const candlesMeta = document.getElementById("candles-meta");
 const candlesCanvas = document.getElementById("candles-canvas");
+const candlesDownloadButton = document.getElementById("candles-download");
 
 const bondsForm = document.getElementById("bonds-form");
 const bondsStatus = document.getElementById("bonds-status");
@@ -15,6 +16,7 @@ const bondsTbody = document.querySelector("#bonds-table tbody");
 const tabButtons = Array.from(document.querySelectorAll(".tab-btn"));
 const tabPanels = Array.from(document.querySelectorAll(".tab-panel"));
 let lastDailyRows = [];
+let lastCandlesTicker = "";
 
 function setViewportSizeVars() {
   const vh = window.innerHeight * 0.01;
@@ -212,10 +214,49 @@ async function loadCandlesForTicker(ticker) {
     setStatus(candlesStatus, `Тикер: ${payload.ticker}`);
     renderCandlesMeta(payload);
     drawCandles(payload.daily || []);
+    lastCandlesTicker = payload.ticker;
   } catch (error) {
     setStatus(candlesStatus, error.message, true);
     candlesMeta.textContent = "";
     drawCandles([]);
+  }
+}
+
+async function downloadCandlesFile(ticker) {
+  const normalizedTicker = ticker.trim().toUpperCase();
+  if (!normalizedTicker) {
+    setStatus(candlesStatus, "Введите тикер для скачивания.", true);
+    return;
+  }
+
+  const previousStatus = candlesStatus.textContent;
+  if (candlesDownloadButton) candlesDownloadButton.disabled = true;
+  setStatus(candlesStatus, "Готовлю файл...");
+
+  try {
+    const response = await fetch(`/api/futures/candles.xlsx?ticker=${encodeURIComponent(normalizedTicker)}`);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.detail || `HTTP ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${normalizedTicker}_candles.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setStatus(candlesStatus, `Тикер: ${normalizedTicker}`);
+  } catch (error) {
+    setStatus(candlesStatus, error.message, true);
+  } finally {
+    if (candlesDownloadButton) candlesDownloadButton.disabled = false;
+    if (!candlesStatus.classList.contains("error") && previousStatus?.startsWith("Тикер:")) {
+      setStatus(candlesStatus, previousStatus);
+    }
   }
 }
 
@@ -422,6 +463,13 @@ candlesForm.addEventListener("submit", async (event) => {
   if (!ticker) return;
   await loadCandlesForTicker(ticker);
 });
+
+if (candlesDownloadButton) {
+  candlesDownloadButton.addEventListener("click", async () => {
+    const ticker = candlesTickerInput.value.trim() || lastCandlesTicker;
+    await downloadCandlesFile(ticker);
+  });
+}
 
 bondsForm.addEventListener("submit", async (event) => {
   event.preventDefault();

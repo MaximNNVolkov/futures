@@ -192,6 +192,22 @@ button:hover {
   filter: brightness(1.07);
 }
 
+button.btn-secondary {
+  background: #ffffff;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+
+button.btn-secondary:hover {
+  filter: none;
+  background: #edf6f2;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .status {
   margin-top: 0.55rem;
   color: var(--muted);
